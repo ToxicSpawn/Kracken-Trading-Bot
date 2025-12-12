@@ -1,0 +1,17 @@
+agents:
+  market_data: true
+  short_term: true
+  mid_term: true
+  long_term: true
+  risk: true
+  execution: true
+  portfolio: true
+  meta_controller: true
+  ml: true        # MLAgent (from v9000)
+  hedge: true     # NEW HedgeAgent (v12000)
+  router: true
+  reasoning_layer: true          # NEW
+  market_selection: true         # NEW
+  research: true
+  multi_venue_book: true
+  arbitrage: true

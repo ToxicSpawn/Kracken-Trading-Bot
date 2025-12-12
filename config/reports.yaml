@@ -1,0 +1,5 @@
+reports:
+  daily_pnl:
+    enabled: true
+    hour_utc: 9       # 09:00 UTC (8pm AEDT-ish depending on DST)
+    minute_utc: 0

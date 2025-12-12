@@ -1,0 +1,15 @@
+[Unit]
+Description=Kraken ML Bot v200E
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kraken_ml_bot_v200E
+EnvironmentFile=/opt/kraken_ml_bot_v200E/.env
+ExecStart=/opt/kraken_ml_bot_v200E/venv/bin/python /opt/kraken_ml_bot_v200E/bot.py
+Restart=on-failure
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target

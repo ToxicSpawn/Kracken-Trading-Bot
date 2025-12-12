@@ -1,0 +1,4 @@
+metrics:
+  enabled: true
+  port: 8001
+  addr: "0.0.0.0"

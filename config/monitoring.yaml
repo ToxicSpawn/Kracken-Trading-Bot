@@ -1,0 +1,6 @@
+monitoring:
+  data_quality:
+    enabled: true
+    alert_interval_sec: 600   # alert at most every 10 minutes per symbol
+    gap_multiplier: 3.0       # gap threshold vs expected candle spacing
+    stale_multiplier: 3.0     # stale threshold vs expected candle spacing
