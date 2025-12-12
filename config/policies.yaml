@@ -1,0 +1,10 @@
+policies:
+  max_daily_loss_aud: -60           # max ~20% of account in a day
+  absolute_max_drawdown_pct: -35    # hard stop on full-account drawdown
+  max_single_position_pct: 0.35     # no position >35% of equity
+  per_symbol_max_loss_aud: -40      # per-symbol cap
+  allowed_trading_hours_utc: null   # or e.g. [0,1,...,23] if you want a window
+
+  # v9000 extras – rolling 2h loss window
+  rolling_loss_window_min: 120
+  rolling_loss_limit_aud: -45
