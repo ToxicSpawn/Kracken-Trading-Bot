@@ -1,0 +1,14 @@
+accounts:
+  paper:
+    name: "paper"
+    equity: 300.0          # logical starting point (not enforced, but for reference)
+    balance: 300.0         # mirrors equity initially
+    max_drawdown_pct: -30  # stop paper trading if >30% down from peak
+    risk_multiplier: 1.0   # start at 1x; can raise later to 1.5–2.0
+
+  live:
+    name: "live"
+    equity: 300.0          # target funded size
+    balance: 300.0
+    max_drawdown_pct: -25  # tighter than paper
+    risk_multiplier: 1.0
