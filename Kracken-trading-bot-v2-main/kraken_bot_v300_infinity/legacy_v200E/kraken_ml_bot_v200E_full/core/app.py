@@ -12,16 +12,35 @@ from core.runtime import MultiAgentRuntime
 from core.policy import PolicyEngine
 from core.utils import utcnow
 from core.config_watcher import ConfigWatcher
+from core.app_supervisor import HealthRule, monitor_health
 from metrics.server import start_metrics_server
 from reports.daily_pnl import schedule_daily_pnl_task
 
 logger = logging.getLogger(__name__)
 
 
+def _require_file(path: str) -> None:
+    if not Path(path).exists():
+        raise FileNotFoundError(f"Required file not found: {path}")
+
+
 def _require_files(paths: Iterable[str]) -> None:
     missing = [p for p in paths if not Path(p).exists()]
     if missing:
         raise FileNotFoundError(f"Missing required config files: {', '.join(missing)}")
+
+
+def _preflight_validate(pairs_cfg: dict, accounts: dict, policy: PolicyEngine) -> None:
+    enabled = [p for p in pairs_cfg.get("pairs", []) if p.get("enabled", False)]
+    if not enabled:
+        raise RuntimeError("Preflight failed: no enabled pairs in config/pairs.yaml")
+
+    if not accounts:
+        raise RuntimeError("Preflight failed: no accounts loaded from config/accounts.yaml")
+
+    # Sanity: policy must have evaluate() and/or loaded thresholds
+    if not hasattr(policy, "evaluate"):
+        raise RuntimeError("Preflight failed: PolicyEngine missing evaluate()")
 
 
 def _validate_live_env(mode: str) -> None:
@@ -53,57 +72,74 @@ async def main() -> None:
     state = get_global_state()
     state.mode = os.getenv("BOT_MODE", "paper")
 
-    _require_files(
-        ["config/accounts.yaml", "config/policies.yaml", "config/agents.yaml", "config/pairs.yaml"]
-    )
-    _validate_live_env(state.mode)
+    _require_file("config/accounts.yaml")
+    _require_file("config/pairs.yaml")
+    _require_file("config/policies.yaml")
+    _require_file("config/agents.yaml")
 
     # Load accounts
     with open("config/accounts.yaml", "r", encoding="utf-8") as f:
-        accounts_cfg = yaml.safe_load(f).get("accounts", {})
-    for name, cfg in accounts_cfg.items():
-        equity = float(cfg.get("equity", 0.0))
-        balance = float(cfg.get("balance", equity))
-        state.accounts.setdefault(
-            name,
-            AccountState(
-                name=name,
-                equity=equity,
-                balance=balance,
-                max_drawdown_pct=float(cfg.get("max_drawdown_pct", -20.0)),
-                risk_multiplier=float(cfg.get("risk_multiplier", 1.0)),
-            ),
+        acct_cfg = yaml.safe_load(f)
+
+    for a in acct_cfg.get("accounts", []):
+        name = a.get("name", "default")
+        state.accounts[name] = AccountState(
+            name=name,
+            equity=float(a.get("equity", 0.0)),
+            balance=float(a.get("balance", 0.0)),
         )
+
+    # Load pairs (for preflight)
+    with open("config/pairs.yaml", "r", encoding="utf-8") as f:
+        pairs_cfg = yaml.safe_load(f)
 
     # Policy engine
     with open("config/policies.yaml", "r", encoding="utf-8") as f:
         pol_cfg = yaml.safe_load(f)
     policy_engine = PolicyEngine.from_yaml(pol_cfg)
 
-    # Hot-reload watcher
+    # Preflight validation (fail fast)
+    _preflight_validate(pairs_cfg, state.accounts, policy_engine)
+
+    # Start metrics (optional)
+    try:
+        with open("config/metrics.yaml", "r", encoding="utf-8") as f:
+            metrics_cfg = yaml.safe_load(f).get("metrics", {})
+        if metrics_cfg.get("enabled", True):
+            port = int(metrics_cfg.get("port", 8001))
+            start_metrics_server(port)
+            logger.info("Prometheus metrics running on port %s", port)
+    except Exception:
+        logger.exception("Metrics server failed to start (continuing)")
+
+    # Daily PnL task (optional)
+    try:
+        with open("config/reports.yaml", "r", encoding="utf-8") as f:
+            reports_cfg = yaml.safe_load(f).get("reports", {})
+        daily_cfg = reports_cfg.get("daily_pnl", {})
+        if daily_cfg.get("enabled", True):
+            schedule_daily_pnl_task(
+                hour_utc=int(daily_cfg.get("hour_utc", 23)),
+                minute_utc=int(daily_cfg.get("minute_utc", 55))
+            )
+    except Exception:
+        logger.exception("Daily PnL scheduler failed to start (continuing)")
+
+    # Hot reload watchers
     cfg_watcher = ConfigWatcher(state, policy_engine)
-    watcher_task = asyncio.create_task(cfg_watcher.watch_loop())
+    watcher_task = asyncio.create_task(cfg_watcher.watch_loop(), name="config_watcher")
 
-    # Metrics
-    with open("config/metrics.yaml", "r", encoding="utf-8") as f:
-        metrics_cfg = yaml.safe_load(f).get("metrics", {})
-    if metrics_cfg.get("enabled", True):
-        port = int(metrics_cfg.get("port", 8001))
-        start_metrics_server(port)
-        logger.info("Prometheus metrics running on port %s", port)
-
-    # Daily PnL task
-    with open("config/reports.yaml", "r", encoding="utf-8") as f:
-        reports_cfg = yaml.safe_load(f).get("reports", {})
-    daily_cfg = reports_cfg.get("daily_pnl", {})
-    if daily_cfg.get("enabled", True):
-        schedule_daily_pnl_task(hour_utc=int(daily_cfg.get("hour_utc", 23)),
-                                minute_utc=int(daily_cfg.get("minute_utc", 55)))
-
-    logger.info("Starting v200E runtime at %s, mode=%s", utcnow().isoformat(), state.mode)
-
+    # Runtime
     runtime = MultiAgentRuntime(state, policy_engine)
     await runtime.start()
+
+    # Health supervisor (authoritative)
+    rules = [
+        HealthRule("market_data", max_staleness_seconds=20, severity="CRITICAL"),
+        HealthRule("risk", max_staleness_seconds=30, severity="CRITICAL"),
+        HealthRule("execution_intent", max_staleness_seconds=60, severity="WARN"),
+    ]
+    health_task = asyncio.create_task(monitor_health(state, rules, interval_seconds=5.0), name="health_monitor")
 
     try:
         while True:
@@ -112,6 +148,7 @@ async def main() -> None:
         logger.info("Shutdown requested")
     finally:
         cfg_watcher.stop()
-        watcher_task.cancel()
-        await asyncio.gather(watcher_task, return_exceptions=True)
+        for t in (watcher_task, health_task):
+            t.cancel()
+        await asyncio.gather(watcher_task, health_task, return_exceptions=True)
         await runtime.stop()
