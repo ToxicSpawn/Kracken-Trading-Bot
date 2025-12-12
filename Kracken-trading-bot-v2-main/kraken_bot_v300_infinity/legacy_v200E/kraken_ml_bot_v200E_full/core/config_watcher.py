@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+"""Config watcher for hot-reloading configuration.
+
+Compatibility note:
+- Uses Optional[X] instead of X | None for Python 3.9 compatibility.
+"""
+
 import asyncio
 import logging
 import os
-from typing import Dict
+from typing import Dict, Optional
 
 import yaml
 
@@ -33,7 +39,7 @@ class ConfigWatcher:
         self._mtimes: Dict[str, float] = {}
         self._stopped = False
 
-    def _yaml_if_changed(self, path: str) -> Dict | None:
+    def _yaml_if_changed(self, path: str) -> Optional[Dict]:
         if not os.path.exists(path):
             return None
 
