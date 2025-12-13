@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from core.loss_cluster import LossClusterTracker
 
@@ -61,3 +61,14 @@ class GlobalState:
             lc = LossClusterTracker()
             self.meta["loss_cluster"] = lc
         return lc
+
+    def get_loss_cluster(self) -> LossClusterTracker:
+        """Alias for loss_cluster() for compatibility."""
+        return self.loss_cluster()
+
+    def record_trade_outcome(self, pnl: float, ts_iso: Optional[str] = None) -> None:
+        """Research-friendly helper: also stores last outcome in state.meta."""
+        self.meta["last_trade_pnl"] = float(pnl)
+        if ts_iso:
+            self.meta["last_trade_ts"] = ts_iso
+        self.get_loss_cluster().record_outcome(float(pnl))

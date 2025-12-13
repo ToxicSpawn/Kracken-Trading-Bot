@@ -73,7 +73,7 @@ class PolicyEngine:
         if self._previous_realized_pnl is not None:
             delta_realized_pnl = state.total_realized_pnl - self._previous_realized_pnl
             if delta_realized_pnl < 0:
-                loss_cluster.record_loss(delta_realized_pnl)
+                loss_cluster.record_outcome(delta_realized_pnl)
         self._previous_realized_pnl = state.total_realized_pnl
 
         # Check for loss cluster pause (blocks all trading)

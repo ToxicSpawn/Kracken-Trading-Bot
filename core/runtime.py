@@ -23,6 +23,7 @@ from agents.market_selection_agent import MarketSelectionAgent
 from agents.reasoning_layer import ReasoningLayerAgent
 from agents.research_agent import ResearchAgent
 from agents.multi_venue_book_agent import MultiVenueBookAgent
+from agents.loss_cluster_supervisor import LossClusterSupervisor
 
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,8 @@ class MultiAgentRuntime:
                     notional_per_trade=2.0,
                 )
             )
+        if agent_cfg.get("loss_cluster_supervisor", False):
+            self.agents.append(LossClusterSupervisor("loss_cluster_supervisor", ctx, interval=2.0))
 
         for agent in self.agents:
             logger.info("Starting agent: %s", agent.name)
