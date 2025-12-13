@@ -34,6 +34,7 @@ class PolicyEngine:
     def __init__(self, config: PolicyConfig) -> None:
         self.config = config
         self._equity_peaks: Dict[str, float] = {}
+        self._previous_realized_pnl: Optional[float] = None
 
     @classmethod
     def from_yaml(cls, yaml_cfg: Dict[str, Any]) -> "PolicyEngine":
@@ -66,6 +67,13 @@ class PolicyEngine:
 
     def evaluate(self, state: GlobalState) -> PolicyDecision:
         reasons: List[str] = []
+
+        # Track loss clusters
+        if self._previous_realized_pnl is not None:
+            delta_realized_pnl = state.total_realized_pnl - self._previous_realized_pnl
+            if delta_realized_pnl < 0:
+                state.loss_cluster().record_loss(delta_realized_pnl)
+        self._previous_realized_pnl = state.total_realized_pnl
 
         if state.total_realized_pnl < self.config.max_daily_loss_aud:
             reasons.append(

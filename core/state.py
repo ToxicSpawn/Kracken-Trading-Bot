@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Any
 
+from core.loss_cluster import LossClusterTracker
+
 
 @dataclass
 class PositionSnapshot:
@@ -52,3 +54,10 @@ class GlobalState:
     trading_enabled: bool = True
     mode: str = "paper"
     meta: Dict[str, Any] = field(default_factory=dict)
+
+    def loss_cluster(self) -> LossClusterTracker:
+        lc = self.meta.get("loss_cluster")
+        if lc is None:
+            lc = LossClusterTracker()
+            self.meta["loss_cluster"] = lc
+        return lc
