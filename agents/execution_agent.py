@@ -7,6 +7,7 @@ from analytics import RegimeLabel
 from analytics.rl import RlPositionSizer, RlSizerConfig
 from agents.base import BaseAgent
 from core.state import PairSnapshot
+from core.live_metrics import on_order_submitted, on_order_error, order_latency_timer
 from notifications.telegram import send_telegram_message
 from exchange.venue_router import VenueRouter
 from exchange.multi_venue_executor import MultiVenueOrderExecutor
@@ -181,6 +182,15 @@ class ExecutionAgent(BaseAgent):
                 )
                 venue = venue_choice.venue if venue_choice else Venue.KRAKEN
 
+                # Create intent dict for metrics
+                intent_dict = {
+                    "symbol": symbol,
+                    "side": blended,
+                    "meta": {"strategy": "execution_agent"}
+                }
+
+                # Track order latency
+                timer = order_latency_timer()
                 res = await self.multi_executor.execute(
                     venue=venue,
                     symbol=symbol,
@@ -188,6 +198,7 @@ class ExecutionAgent(BaseAgent):
                     notional_quote=notional_aud,
                     futures=(venue == Venue.BINANCE),
                 )
+                timer.observe()
 
                 if not res["ok"]:
                     logger.warning(
@@ -195,6 +206,9 @@ class ExecutionAgent(BaseAgent):
                         venue.value,
                         res.get("message", ""),
                     )
+                    on_order_error(intent_dict)
+                else:
+                    on_order_submitted(intent_dict)
 
     def _blend_signals(self, ps: PairSnapshot, strat_weights: dict[str, float], mode: str) -> str | None:
         ml_signal = None

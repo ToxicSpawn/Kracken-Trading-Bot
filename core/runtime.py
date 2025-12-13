@@ -7,6 +7,7 @@ import yaml
 from core.state import GlobalState
 from core.policy import PolicyEngine
 from core.allocator import compute_risk_multiplier, AllocatorConfig
+from core.live_metrics import on_intent, on_intent_dropped, on_allocator, on_eligibility
 from agents.base import Agent, AgentContext
 from agents.market_data import MarketDataAgent
 from agents.short_term_agent import ShortTermAgent
@@ -123,15 +124,23 @@ class MultiAgentRuntime:
                 continue
 
             for intent in intents:
+                # Track intent observed
+                on_intent(intent)
+
                 # Basic eligibility check: ensure required fields exist
                 if not intent.get("symbol") or intent.get("qty", 0.0) == 0.0:
                     logger.debug("ExecutionAgent: skipping invalid intent %s", intent)
+                    on_intent_dropped("missing_fields")
                     continue
 
                 # Apply global capital allocator (choke point)
                 alloc = compute_risk_multiplier(self.state, intent, AllocatorConfig())
                 intent["qty"] = float(intent.get("qty", 0.0)) * float(alloc.multiplier)
                 intent.setdefault("meta", {})["allocator"] = alloc.reasons
+                on_allocator(intent)
+
+                # Track eligibility multiplier
+                on_eligibility(intent, alloc.multiplier)
 
                 # Skip if allocator reduced qty to zero or below
                 if float(intent.get("qty", 0.0)) <= 0.0:
@@ -140,6 +149,7 @@ class MultiAgentRuntime:
                         intent.get("symbol"),
                         alloc.multiplier,
                     )
+                    on_intent_dropped("allocator_zeroed")
                     continue
 
                 # Risk policy check (if policy engine available)
@@ -150,6 +160,7 @@ class MultiAgentRuntime:
                         intent.get("symbol"),
                         "; ".join(policy_decision.reasons),
                     )
+                    on_intent_dropped("policy_blocked")
                     continue
 
                 # Intent is approved - log for now (actual execution happens in ExecutionAgent)

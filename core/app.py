@@ -10,7 +10,6 @@ from core.runtime import MultiAgentRuntime
 from core.policy import PolicyEngine
 from core.utils import utcnow
 from core.config_watcher import ConfigWatcher
-from core.live_metrics import start_metrics_server as start_live_metrics_server
 from metrics.server import start_metrics_server
 from reports.daily_pnl import schedule_daily_pnl_task
 
@@ -20,9 +19,6 @@ logger = logging.getLogger(__name__)
 async def main() -> None:
     state = get_global_state()
     state.mode = os.getenv("BOT_MODE", "paper")
-
-    # Start live metrics server (Prometheus-compatible)
-    start_live_metrics_server()
 
     # Load accounts
     with open("config/accounts.yaml", "r", encoding="utf-8") as f:

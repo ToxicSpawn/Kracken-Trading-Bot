@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 # Load .env file at startup
 load_dotenv()
 
+from core.live_metrics import start_metrics_server
+start_metrics_server()
+
 from core.app import main
 
 LOG_FILE = "logs/bot.log"

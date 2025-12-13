@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from agents.base import BaseAgent
 from analytics.scorecard import compute_scorecard
+from core.live_metrics import set_system_state
 from metrics.server import update_metrics
 
 logger = logging.getLogger(__name__)
@@ -55,3 +56,6 @@ class MetaController(BaseAgent):
         scorecard.extra["regime_l2_shock"] = int(shock)
 
         update_metrics(scorecard)
+
+        # Update live metrics system state
+        set_system_state(state)
