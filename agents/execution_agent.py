@@ -44,6 +44,9 @@ class ExecutionAgent(BaseAgent):
             "strategy_weights", router.get("strategy_weights", {"rsi": 0.3, "trend": 0.2, "ml": 0.5})
         )
         global_risk_mult = float(router.get("risk_multiplier", 1.0)) * float(omega.get("risk_multiplier", 1.0))
+        # Apply loss cluster throttle multiplier if present
+        loss_cluster_throttle = float(self.ctx.state.meta.get("loss_cluster_throttle_multiplier", 1.0))
+        global_risk_mult *= loss_cluster_throttle
         enabled_pairs = set(
             omega.get("allowed_pairs")
             or router.get("enabled_pairs")

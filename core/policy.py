@@ -69,11 +69,21 @@ class PolicyEngine:
         reasons: List[str] = []
 
         # Track loss clusters
+        loss_cluster = state.loss_cluster()
         if self._previous_realized_pnl is not None:
             delta_realized_pnl = state.total_realized_pnl - self._previous_realized_pnl
             if delta_realized_pnl < 0:
-                state.loss_cluster().record_loss(delta_realized_pnl)
+                loss_cluster.record_loss(delta_realized_pnl)
         self._previous_realized_pnl = state.total_realized_pnl
+
+        # Check for loss cluster pause (blocks all trading)
+        if loss_cluster.should_pause():
+            reasons.append("loss cluster pause active (too many losses in short window)")
+
+        # Apply loss cluster throttle multiplier to state for position sizing
+        # Note: throttle reduces position sizes but doesn't block trading (unlike pause)
+        throttle_mult = loss_cluster.throttle_multiplier()
+        state.meta["loss_cluster_throttle_multiplier"] = throttle_mult
 
         if state.total_realized_pnl < self.config.max_daily_loss_aud:
             reasons.append(
