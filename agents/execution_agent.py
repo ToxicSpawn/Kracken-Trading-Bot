@@ -137,6 +137,10 @@ class ExecutionAgent(BaseAgent):
             )
 
             reward = float(self.ctx.state.meta.get("last_trade_pnl", 0.0))
+
+            # Record confirmed outcome for loss clustering & governance
+            self.ctx.state.record_trade_outcome(pnl=reward)
+
             await self._update_rl_reward(reward)
 
         if target_positions:
